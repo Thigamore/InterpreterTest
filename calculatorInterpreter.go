@@ -20,73 +20,168 @@ var (
 )
 
 type Token struct {
-	value string
-	class int
+	Val   string
+	Class int
 }
 
 func main() {
 	input := []rune(readInput(""))
+	pos := 0
 
-	tokens := InitList[*Token]()
+	tokenList := InitList(getNextToken(input, &pos))
+	currentToken := tokenList.Head
 
-}
-
-func getNextToken(input []rune, pos int) *Token {
-
-}
-
-func getType(input)
-
-func execExpr(tokens *[]Token, operandPos int) {
-	leftNum := 0
-	rightNum := 0
-	var operation func(int, int)
-	var err error
-	afterOperand := false
-	for pos, token := range *tokens {
-		fmt.Println(pos, leftNum, rightNum)
-		if pos == operandPos {
-			if token.value == "+" {
-				operation = add
-			} else if token.value == "-" {
-				operation = subtract
-			} else if token.value == "*" {
-				operation = multiply
-			} else if token.value == "/" {
-				operation = divide
-			}
-
-		} else if token.class == WHITE_SPACE {
-		} else if token.value == "" {
-			break
-		} else if !afterOperand {
-			leftNum, err = strconv.Atoi(token.value)
-			afterOperand = true
-		} else if afterOperand {
-			rightNum, err = strconv.Atoi(token.value)
+	fmt.Println(currentToken.Val)
+	for !checkType(currentToken.Val, EOF) {
+		currentToken.Next = &Node[*Token]{
+			Val:    getNextToken(input, &pos),
+			Before: currentToken,
 		}
-		if err != nil {
-			panic(err)
+		currentToken = currentToken.Next
+		tokenList.Tail = currentToken
+		fmt.Println(*currentToken.Val)
+	}
+
+	fmt.Printf("Length: %d\n", pos-1)
+
+	currentToken = tokenList.Head
+	//Goes through and does multiplication and division first
+	for !checkType(currentToken.Val, EOF) {
+		if checkType(currentToken.Val, OPERATOR) {
+			if currentToken.Val.Val == "*" || currentToken.Val.Val == "/" {
+				currentToken.Val = &Token{
+					Val:   fmt.Sprint(execExpr(currentToken)),
+					Class: NUMBER,
+				}
+				if currentToken.Before.Before != nil {
+					currentToken.Before.Before.Next = currentToken
+					currentToken.Before = currentToken.Before.Before
+				} else {
+					currentToken.Before = nil
+					tokenList.Head = currentToken
+				}
+				if currentToken.Next.Next != nil {
+					currentToken.Next.Next.Before = currentToken
+					currentToken.Next = currentToken.Next.Next
+				} else {
+					currentToken.Next = nil
+					tokenList.Tail = currentToken
+				}
+			}
+		}
+		currentToken = currentToken.Next
+	}
+	currentToken = tokenList.Head
+	//Goes through and does addition and subtraction second
+	for !checkType(currentToken.Val, EOF) {
+		if checkType(currentToken.Val, OPERATOR) {
+			if currentToken.Val.Val == "+" || currentToken.Val.Val == "-" {
+				currentToken.Val = &Token{
+					Val:   fmt.Sprint(execExpr(currentToken)),
+					Class: NUMBER,
+				}
+			}
+			if currentToken.Before.Before != nil {
+				currentToken.Before = currentToken.Before.Before
+			} else {
+				currentToken.Before = nil
+				tokenList.Head = currentToken
+			}
+			if currentToken.Next.Next != nil {
+				currentToken.Next = currentToken.Next.Next
+			} else {
+				currentToken.Next = nil
+				tokenList.Tail = currentToken
+			}
+		}
+		currentToken = currentToken.Next
+	}
+	fmt.Println()
+	fmt.Println(tokenList.Head.Val.Val)
+}
+
+func getNextToken(input []rune, pos *int) *Token {
+	switch getType(input[*pos]) {
+	case NUMBER:
+		return &Token{
+			Val:   getNumber(input, pos),
+			Class: NUMBER,
+		}
+	case OPERATOR:
+		*pos++
+		return &Token{
+			Val:   string(input[*pos-1]),
+			Class: OPERATOR,
+		}
+	case WHITE_SPACE:
+		*pos++
+		return getNextToken(input, pos)
+	case EOF:
+		*pos++
+		return &Token{
+			Val:   "",
+			Class: EOF,
 		}
 	}
-	operation(leftNum, rightNum)
+	return nil
 }
 
-func add(left int, right int) {
-	fmt.Println(left, right)
-	fmt.Println(left + right)
+func getType(input rune) int {
+	if isDigit(input) {
+		return NUMBER
+	} else if isWhiteSpace(input) {
+		return WHITE_SPACE
+	} else if isOperator(input) {
+		return OPERATOR
+	} else {
+		return EOF
+	}
 }
 
-func subtract(left int, right int) {
-	fmt.Println(left - right)
+func checkType(token *Token, class int) bool {
+	if token.Class == class {
+		return true
+	}
+	return false
 }
 
-func multiply(left int, right int) {
-	fmt.Println(left * right)
+func execExpr(tokens *Node[*Token]) int {
+	var operation func(int, int) int
+	switch tokens.Val.Val {
+	case "*":
+		operation = multiply
+	case "/":
+		operation = divide
+	case "+":
+		operation = add
+	case "-":
+		operation = subtract
+	}
+	left, err := strconv.Atoi(tokens.Before.Val.Val)
+	if err != nil {
+		panic(err)
+	}
+	right, err := strconv.Atoi(tokens.Next.Val.Val)
+	if err != nil {
+		panic(err)
+	}
+	return operation(left, right)
 }
 
-func divide(left int, right int) {
-	fmt.Println(left / right)
+func add(left int, right int) int {
+	return left + right
+}
+
+func subtract(left int, right int) int {
+	return left - right
+}
+
+func multiply(left int, right int) int {
+	return left * right
+}
+
+func divide(left int, right int) int {
+	return left / right
 }
 
 //Put in a file to read from that file
@@ -110,19 +205,17 @@ func readInput(path string) string {
 	return text
 }
 
-func getDigit(input []rune, pos int) (string, int) {
+func getNumber(input []rune, pos *int) string {
 	digit := ""
-	length := 0
-	for ; isDigit(input[pos]); pos++ {
-		digit += string(input[pos])
-		length = pos
+	for ; isDigit(input[*pos]); (*pos)++ {
+		digit += string(input[*pos])
 	}
-	return digit, length + 1
+	return digit
 }
 
 func findOperand(tokens []Token) (int, error) {
 	for pos, token := range tokens {
-		if token.class == OPERATOR {
+		if token.Class == OPERATOR {
 			return pos, nil
 		}
 	}
@@ -136,7 +229,7 @@ func isDigit(char rune) bool {
 	return false
 }
 
-func isOperand(char rune) bool {
+func isOperator(char rune) bool {
 	for _, operator := range OPERATORS {
 		if operator == char {
 			return true
