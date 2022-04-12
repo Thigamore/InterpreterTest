@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"errors"
-	"fmt"
 	"os"
 	"strconv"
 )
@@ -16,7 +15,7 @@ const (
 )
 
 var (
-	OPERATORS = []rune{'+', '-', '/', '*'}
+	OPERATORS = []string{"+", "-", "/", "*"}
 )
 
 type Token struct {
@@ -27,77 +26,21 @@ type Token struct {
 func main() {
 	input := []rune(readInput(""))
 	pos := 0
+	currentToken := &Token{Class: -1}
 
-	tokenList := InitList(getNextToken(input, &pos))
-	currentToken := tokenList.Head
-
-	fmt.Println(currentToken.Val)
-	for !checkType(currentToken.Val, EOF) {
-		currentToken.Next = &Node[*Token]{
-			Val:    getNextToken(input, &pos),
-			Before: currentToken,
-		}
-		currentToken = currentToken.Next
-		tokenList.Tail = currentToken
-		fmt.Println(*currentToken.Val)
-	}
-
-	fmt.Printf("Length: %d\n", pos-1)
-
-	currentToken = tokenList.Head
-	//Goes through and does multiplication and division first
-	for !checkType(currentToken.Val, EOF) {
-		if checkType(currentToken.Val, OPERATOR) {
-			if currentToken.Val.Val == "*" || currentToken.Val.Val == "/" {
-				currentToken.Val = &Token{
-					Val:   fmt.Sprint(execExpr(currentToken)),
-					Class: NUMBER,
-				}
-				if currentToken.Before.Before != nil {
-					currentToken.Before.Before.Next = currentToken
-					currentToken.Before = currentToken.Before.Before
-				} else {
-					currentToken.Before = nil
-					tokenList.Head = currentToken
-				}
-				if currentToken.Next.Next != nil {
-					currentToken.Next.Next.Before = currentToken
-					currentToken.Next = currentToken.Next.Next
-				} else {
-					currentToken.Next = nil
-					tokenList.Tail = currentToken
-				}
+	for checkType(currentToken, EOF) {
+		currentToken = getNextToken(input, &pos)
+		if isOperator(currentToken.Val) {
+			if currentToken.Val == "+" || currentToken.Val == "-" {
+				//TODO ------------------------
+				addSubtract()
+			} else if currentToken.Val == "*" || currentToken.Val == "/" {
+				//TODO------------------------------
+				multiplyDivide()
 			}
 		}
-		currentToken = currentToken.Next
 	}
-	currentToken = tokenList.Head
-	//Goes through and does addition and subtraction second
-	for !checkType(currentToken.Val, EOF) {
-		if checkType(currentToken.Val, OPERATOR) {
-			if currentToken.Val.Val == "+" || currentToken.Val.Val == "-" {
-				currentToken.Val = &Token{
-					Val:   fmt.Sprint(execExpr(currentToken)),
-					Class: NUMBER,
-				}
-			}
-			if currentToken.Before.Before != nil {
-				currentToken.Before = currentToken.Before.Before
-			} else {
-				currentToken.Before = nil
-				tokenList.Head = currentToken
-			}
-			if currentToken.Next.Next != nil {
-				currentToken.Next = currentToken.Next.Next
-			} else {
-				currentToken.Next = nil
-				tokenList.Tail = currentToken
-			}
-		}
-		currentToken = currentToken.Next
-	}
-	fmt.Println()
-	fmt.Println(tokenList.Head.Val.Val)
+
 }
 
 func getNextToken(input []rune, pos *int) *Token {
@@ -145,27 +88,24 @@ func checkType(token *Token, class int) bool {
 	return false
 }
 
-func execExpr(tokens *Node[*Token]) int {
-	var operation func(int, int) int
-	switch tokens.Val.Val {
-	case "*":
-		operation = multiply
-	case "/":
-		operation = divide
-	case "+":
-		operation = add
-	case "-":
-		operation = subtract
-	}
-	left, err := strconv.Atoi(tokens.Before.Val.Val)
+//Split up add subtract and divide multiply for order of operations
+func addSubtract(token *Token, before int, input []rune, pos *int) int {
+	result := 0
+	next := getNextToken(input, pos)
+	nextInt, err := strconv.Atoi(next.Val)
+
 	if err != nil {
 		panic(err)
 	}
-	right, err := strconv.Atoi(tokens.Next.Val.Val)
-	if err != nil {
-		panic(err)
+	if token.Val == "+" {
+		result = add(before, nextInt)
+	} else {
+		result = subtract(before, nextInt)
 	}
-	return operation(left, right)
+}
+
+func multiplyDivide(previous Stack[*Token]) int {
+
 }
 
 func add(left int, right int) int {
@@ -229,7 +169,7 @@ func isDigit(char rune) bool {
 	return false
 }
 
-func isOperator(char rune) bool {
+func isOperator(char string) bool {
 	for _, operator := range OPERATORS {
 		if operator == char {
 			return true
